@@ -1,0 +1,18 @@
+{
+  "name": "A股实时股东人数监测台",
+  "short_name": "股东监测",
+  "description": "五引擎实时追踪A股最新股东户数披露与筹码集中信号",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0f1c",
+  "theme_color": "#0a0f1c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
