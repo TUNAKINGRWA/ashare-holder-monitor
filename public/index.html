@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0f1c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="股东监测" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>A股实时股东人数监测台 · 筹码追踪终端</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- 顶部实时指挥栏 -->
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand-logo">筹</div>
+      <div>
+        <div class="brand-title-row">
+          <h1 class="brand-title">A股实时股东人数监测台</h1>
+          <span id="liveBadge" class="live-badge is-live">
+            <span class="pulse-dot"></span>
+            <span id="liveStatusText">实时监测中</span>
+          </span>
+          <span id="countdownText" class="countdown-pill">下次轮询 --s</span>
+          <button id="accuracyAuditBtn" class="accuracy-pill" title="点击查看黄金对抗基准评测与实时跨源真值核验报告">
+            🎯 准确度自检 <strong id="accuracyBadgeVal">100%</strong>
+          </button>
+          <button id="mobileAccessBtn" class="mobile-pill" title="扫码在手机上通过 5G 外网或同 Wi-Fi 实时看盘">
+            📱 手机扫码看盘
+          </button>
+        </div>
+        <div class="source-health-bar" id="sourceHealthBar">
+          <span class="health-chip" data-src="eastmoney">
+            <i class="status-dot"></i>东财户数中心 <em class="latency">--</em>
+          </span>
+          <span class="health-chip" data-src="szse_irm">
+            <i class="status-dot"></i>深交所互动易 <em class="latency">--</em>
+          </span>
+          <span class="health-chip" data-src="sse_ehudong">
+            <i class="status-dot"></i>上证e互动 <em class="latency">--</em>
+          </span>
+          <span class="health-chip" data-src="p5w_ir">
+            <i class="status-dot"></i>全景网沪深北 <em class="latency">--</em>
+          </span>
+          <span class="health-chip" data-src="live_quote">
+            <i class="status-dot"></i>实时行情 <em class="latency">--</em>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar-actions">
+      <div class="control-cluster">
+        <label class="ctrl-label" for="intervalSelect">轮询频率</label>
+        <select id="intervalSelect" class="ctrl-select">
+          <option value="30">30 秒</option>
+          <option value="60" selected>1 分钟</option>
+          <option value="120">2 分钟</option>
+          <option value="300">5 分钟</option>
+        </select>
+        <button id="pauseBtn" class="btn btn-ghost" title="暂停或恢复后台自动轮询">⏸ 暂停</button>
+        <button id="refreshNowBtn" class="btn btn-primary" title="立即向三大数据源发起同步">⟳ 立即刷新</button>
+      </div>
+
+      <div class="control-cluster">
+        <button id="soundToggleBtn" class="btn btn-toggle is-active" title="发现新披露股东人数时播放合成提示音">
+          🔊 声音提醒: 开
+        </button>
+        <button id="notifyToggleBtn" class="btn btn-toggle" title="发现新披露股东人数时弹出系统桌面通知">
+          🖥 桌面通知: 开启
+        </button>
+        <button id="simulateBtn" class="btn btn-accent-outline" title="发送一条模拟实时推送，测试声音与桌面弹窗">
+          🔔 测试提醒
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 实时新消息横幅堆栈 -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <main class="container">
+    <!-- 核心筹码概览 KPI 面板 -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">最新活跃披露批次</span>
+          <span class="kpi-tag">双源实时融合</span>
+        </div>
+        <div class="kpi-value" id="kpiLatestDate">--</div>
+        <div class="kpi-sub" id="kpiTotalCounts">融合流 -- 条 · 互动问答缓存 -- 条</div>
+      </div>
+
+      <div class="kpi-card kpi-clickable" id="kpiCardConcentrated" title="点击筛选筹码集中（户数减少）标的">
+        <div class="kpi-header">
+          <span class="kpi-label">近期批次筹码集中占比</span>
+          <span class="kpi-tag tag-bull">户数减少 = 筹码集中</span>
+        </div>
+        <div class="kpi-value text-bull" id="kpiConcentrationRate">--%</div>
+        <div class="ratio-bar">
+          <div class="ratio-fill-bull" id="kpiRatioFill" style="width: 50%"></div>
+        </div>
+        <div class="kpi-sub" id="kpiConcentratedDetail">集中 -- 家（大幅≤-5%: --） / 分散 -- 家</div>
+      </div>
+
+      <div class="kpi-card kpi-clickable" id="kpiCardAhead" title="点击只看互动易/e互动已出但东方财富尚未收录的一手抢先数据">
+        <div class="kpi-header">
+          <span class="kpi-label">⚡ 一手抢先披露（领先东财）</span>
+          <span class="kpi-tag tag-amber">时间差Alpha</span>
+        </div>
+        <div class="kpi-value text-amber" id="kpiAheadCount">0</div>
+        <div class="kpi-sub">董秘刚回复户数、自动对比东财上期算增减</div>
+      </div>
+
+      <div class="kpi-card kpi-clickable" id="kpiCardTopDrop" title="点击查看本期筹码最集中个股走势">
+        <div class="kpi-header">
+          <span class="kpi-label">本期单期集中榜首 / 背离数</span>
+          <span class="kpi-tag tag-purple" id="kpiDivergenceBadge">背离吸筹 0 家</span>
+        </div>
+        <div class="kpi-value" id="kpiTopStock">--</div>
+        <div class="kpi-sub" id="kpiTopStockSub">点击查看历次筹码与股价双轴图</div>
+      </div>
+    </section>
+
+    <!-- 视图切换 Tabs + 搜索框 -->
+    <section class="nav-panel">
+      <div class="view-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="fused">
+          🔥 融合实时披露流 <span class="tab-count" id="countFused">0</span>
+        </button>
+        <button class="tab-btn" data-tab="qa">
+          💬 互动平台一手问答 <span class="tab-count" id="countQA">0</span>
+        </button>
+        <button class="tab-btn" data-tab="em">
+          📊 东财结构化全表 <span class="tab-count" id="countEM">0</span>
+        </button>
+        <button class="tab-btn" data-tab="watchlist">
+          ⭐ 自选重点盯盘 <span class="tab-count" id="countWatch">0</span>
+        </button>
+      </div>
+
+      <div class="search-box-wrap">
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="搜代码/名称（如 000021、深科技，回车可查全市场任意A股）"
+          autocomplete="off"
+        />
+        <button id="remoteSearchBtn" class="btn btn-sm btn-ghost">全市场查股</button>
+      </div>
+    </section>
+
+    <!-- 智能筹码筛选器栏 -->
+    <section class="filter-bar">
+      <div class="chip-group" id="chipFilters">
+        <button class="filter-pill active" data-filter="all">全部记录</button>
+        <button class="filter-pill" data-filter="concentrated">🔴 筹码集中 (户数降)</button>
+        <button class="filter-pill" data-filter="sharp5">🔥 大幅集中 (≤ -5%)</button>
+        <button class="filter-pill" data-filter="sharp10">⚡ 急剧集中 (≤ -10%)</button>
+        <button class="filter-pill" data-filter="divergence" title="股东户数减少≥2%，且区间股价涨跌幅≤2%（主力暗中吸筹特征）">
+          💎 筹码背离 (户数降·股价滞涨)
+        </button>
+        <button class="filter-pill" data-filter="ahead">🚀 一手抢先 (未入东财)</button>
+      </div>
+
+      <div class="filter-right">
+        <label id="qaValidOnlyWrap" class="checkbox-pill hidden">
+          <input type="checkbox" id="qaValidOnlyCheck" checked />
+          <span>仅看新鲜有效披露（过滤拒答与旧季报复述）</span>
+        </label>
+
+        <select id="boardFilterSelect" class="ctrl-select ctrl-select-sm">
+          <option value="all">全部板块</option>
+          <option value="沪市主板">沪市主板 (60)</option>
+          <option value="深市主板">深市主板 (00)</option>
+          <option value="创业板">创业板 (30)</option>
+          <option value="科创板">科创板 (688)</option>
+          <option value="北交所">北交所 (8/92)</option>
+        </select>
+
+        <select id="sortSelect" class="ctrl-select ctrl-select-sm">
+          <option value="time">按最新披露排序</option>
+          <option value="drop">按筹码集中度 (降幅最大优先)</option>
+          <option value="unpumped">按黄金潜伏度 (户数降+截止后未涨)</option>
+          <option value="rise">按筹码发散度 (增幅最大优先)</option>
+          <option value="avgcap">按户均持股市值 (由高到低)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- 全市场远程搜索结果浮层条 -->
+    <section id="remoteSearchPanel" class="remote-search-panel hidden">
+      <div class="remote-search-header">
+        <span id="remoteSearchTitle">全市场检索结果</span>
+        <button id="closeRemoteSearchBtn" class="btn btn-sm btn-ghost">✕ 关闭检索结果</button>
+      </div>
+      <div id="remoteSearchList" class="stream-grid"></div>
+    </section>
+
+    <!-- 自选股快捷添加条（仅在自选Tab展示） -->
+    <section id="watchlistQuickBar" class="watchlist-bar hidden">
+      <div class="watchlist-bar-inner">
+        <span>📌 添加自选盯盘股票：</span>
+        <input
+          type="text"
+          id="watchAddInput"
+          class="search-input watch-add-input"
+          placeholder="输入6位股票代码，如 600519 或 300750"
+          maxlength="6"
+        />
+        <button id="watchAddBtn" class="btn btn-primary btn-sm">+ 加入自选监控</button>
+        <span class="watch-hint">自选股一旦出现新董秘回复或东财披露，将触发强提示音与桌面弹窗置顶提醒</span>
+      </div>
+    </section>
+
+    <!-- 主内容列表渲染区 -->
+    <section id="contentArea" class="content-area">
+      <div class="loading-state">正在连接三大数据源（东方财富 + 深交所互动易 + 上证e互动）采集实时股东户数...</div>
+    </section>
+  </main>
+
+  <!-- 右侧滑出抽屉：个股历次股东人数 & 股价双轴趋势图 -->
+  <div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
+  <aside id="detailDrawer" class="detail-drawer hidden" aria-hidden="true">
+    <div class="drawer-header">
+      <div>
+        <div class="drawer-title-row">
+          <h2 id="drawerStockName" class="drawer-title">--</h2>
+          <span id="drawerStockCode" class="code-badge">--</span>
+          <span id="drawerBoardBadge" class="board-badge">--</span>
+          <span id="drawerStreakBadge" class="streak-badge hidden">--</span>
+        </div>
+        <div class="drawer-links" id="drawerLinks"></div>
+      </div>
+      <div class="drawer-header-actions">
+        <button id="drawerWatchBtn" class="btn btn-ghost btn-sm">☆ 加自选</button>
+        <button id="drawerCloseBtn" class="btn btn-ghost btn-sm">✕ 关闭</button>
+      </div>
+    </div>
+
+    <div id="drawerBody" class="drawer-body">
+      <!-- 动态注入：核心指标条 + 高清双轴Canvas走势图 + 一手互动问答 + 历史明细表 -->
+    </div>
+  </aside>
+
+  <!-- 准确度自检与跨源真值交叉核验弹窗 -->
+  <div id="accuracyModalBackdrop" class="drawer-backdrop hidden"></div>
+  <section id="accuracyModal" class="accuracy-modal hidden" role="dialog" aria-modal="true">
+    <div class="drawer-header">
+      <div>
+        <h2 class="drawer-title">🎯 抽取引擎准确度自检 & 跨源真值交叉核验报告</h2>
+        <div class="kpi-sub" style="margin-top:4px">实时对账：深交所互动易 / 上证e互动 / 全景网一手原文解析结果 vs 东方财富官方结构化数据库</div>
+      </div>
+      <button id="accuracyModalCloseBtn" class="btn btn-ghost btn-sm">✕ 关闭</button>
+    </div>
+    <div id="accuracyModalBody" class="drawer-body"></div>
+  </section>
+
+  <!-- 手机实时看盘二维码弹窗（外网 5G HTTPS + 同 Wi-Fi 局域网双通道） -->
+  <div id="mobileModalBackdrop" class="drawer-backdrop hidden"></div>
+  <section id="mobileModal" class="accuracy-modal mobile-qr-modal hidden" role="dialog" aria-modal="true">
+    <div class="drawer-header">
+      <div>
+        <h2 class="drawer-title">📱 手机实时看盘（5G外网 + Wi-Fi双通道）</h2>
+        <div class="kpi-sub" style="margin-top:4px">手机相机、微信或浏览器直接扫码打开，毫秒级同步 SSE 实时披露流与双轴趋势图</div>
+      </div>
+      <button id="mobileModalCloseBtn" class="btn btn-ghost btn-sm">✕ 关闭</button>
+    </div>
+    <div id="mobileModalBody" class="drawer-body"></div>
+  </section>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

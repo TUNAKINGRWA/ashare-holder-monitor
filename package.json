@@ -1,0 +1,15 @@
+{
+  "name": "ashare-holder-monitor",
+  "version": "2.0.0",
+  "description": "A股实时股东人数五引擎监测看板（支持 Vercel Serverless + GitHub Pages + 本地常驻三端自适应）",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "export-seeds": "node src/exportSeeds.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
