@@ -23,7 +23,10 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
-const monitor = new HolderMonitor({ dataDir: DATA_DIR });
+const monitor = new HolderMonitor({
+  dataDir: DATA_DIR,
+  seedStorePath: path.join(DATA_DIR, 'seed-store.json'),
+});
 const sseClients = new Set();
 let tunnelManager = null;
 let boundPort = 3688;

@@ -535,7 +535,7 @@ export class HolderMonitor extends EventEmitter {
     this.isPolling = true;
     this.emit('status', this.getStatusPayload());
 
-    const isFirstBaseline = this.seenIds.size === 0 && !this.hasCompletedInitialSync;
+    const isFirstBaseline = isWarmup || (this.seenIds.size === 0 && !this.hasCompletedInitialSync);
     const newAlerts = [];
 
     const runSource = async (key, fn) => {
